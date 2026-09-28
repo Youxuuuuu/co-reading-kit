@@ -231,6 +231,8 @@ CYBERBOSS_STATE_DIR
 }
 ```
 
+省略 `bookId` 和 `all` 时，`reading_search` 与 `reading_search_exact` 默认搜索整个书库；指定 `bookId` 时只搜索该书。`bookId` 与 `all: true` 不能同时使用。
+
 ### `reading_get_chunk`
 
 ```json

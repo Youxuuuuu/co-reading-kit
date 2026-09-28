@@ -1669,6 +1669,7 @@ function createToolResult(payload) {
 function createToolError(error) {
   const payload = {
     ok: false,
+    ...(typeof error.code === "string" ? { code: error.code } : {}),
     error: error.message || String(error),
     exitCode: error.exitCode ?? null,
     stdout: error.stdout || "",
@@ -1687,6 +1688,32 @@ function createToolError(error) {
   };
 }
 
+function invalidArgs(message) {
+  const error = new Error(message);
+  error.code = "invalid_args";
+  return error;
+}
+
+function normalizeSearchScope(args) {
+  const hasBookId = Boolean(args.bookId);
+  const hasAll = args.all === true;
+  const allWasProvided = Object.prototype.hasOwnProperty.call(args, "all");
+
+  if (hasBookId && hasAll) {
+    throw invalidArgs("bookId and all cannot be used together");
+  }
+
+  if (!hasBookId && allWasProvided && !hasAll) {
+    throw invalidArgs("all must be true when bookId is omitted");
+  }
+
+  if (!hasBookId && !allWasProvided) {
+    return { ...args, all: true };
+  }
+
+  return args;
+}
+
 async function main() {
   const server = new McpServer({
     name: "co-reading-kit",
@@ -1694,11 +1721,11 @@ async function main() {
   });
 
   server.registerTool("reading_search", {
-    description: "Search reading chunks by keyword in one book or across all books.",
+    description: "Search reading chunks by keyword. Omit bookId and all to search all books.",
     inputSchema: {
-      bookId: z.string().optional(),
-      all: z.boolean().optional(),
-      query: z.string(),
+      bookId: z.string().trim().min(1).optional(),
+      all: z.boolean().optional().describe("Set true for all books; defaults to true when bookId and all are omitted."),
+      query: z.string().trim().min(1),
       limit: z.number().int().positive().optional(),
       maxPreview: z.number().int().min(80).optional(),
       includeText: z.boolean().optional(),
@@ -1706,18 +1733,12 @@ async function main() {
     },
   }, async (args) => {
     try {
-      if (!args.bookId && !args.all) {
-        throw new Error("bookId and all must be exactly one of the two");
-      }
-      if (args.bookId && args.all) {
-        throw new Error("bookId and all must be exactly one of the two");
-      }
-
+      const normalizedArgs = normalizeSearchScope(args);
       const result = await readingSearch({
-        ...args,
-        limit: args.limit ?? DEFAULT_SEARCH_LIMIT,
-        maxPreview: args.maxPreview ?? DEFAULT_SEARCH_PREVIEW,
-        includeText: Boolean(args.includeText),
+        ...normalizedArgs,
+        limit: normalizedArgs.limit ?? DEFAULT_SEARCH_LIMIT,
+        maxPreview: normalizedArgs.maxPreview ?? DEFAULT_SEARCH_PREVIEW,
+        includeText: Boolean(normalizedArgs.includeText),
       }, false);
       return createToolResult(result);
     } catch (error) {
@@ -1726,11 +1747,11 @@ async function main() {
   });
 
   server.registerTool("reading_search_exact", {
-    description: "Search by exact phrase in one book or across all books.",
+    description: "Search by exact phrase. Omit bookId and all to search all books.",
     inputSchema: {
-      bookId: z.string().optional(),
-      all: z.boolean().optional(),
-      query: z.string(),
+      bookId: z.string().trim().min(1).optional(),
+      all: z.boolean().optional().describe("Set true for all books; defaults to true when bookId and all are omitted."),
+      query: z.string().trim().min(1),
       limit: z.number().int().positive().optional(),
       maxPreview: z.number().int().min(80).optional(),
       includeText: z.boolean().optional(),
@@ -1738,18 +1759,12 @@ async function main() {
     },
   }, async (args) => {
     try {
-      if (!args.bookId && !args.all) {
-        throw new Error("bookId and all must be exactly one of the two");
-      }
-      if (args.bookId && args.all) {
-        throw new Error("bookId and all must be exactly one of the two");
-      }
-
+      const normalizedArgs = normalizeSearchScope(args);
       const result = await readingSearch({
-        ...args,
-        limit: args.limit ?? DEFAULT_SEARCH_LIMIT,
-        maxPreview: args.maxPreview ?? DEFAULT_SEARCH_PREVIEW,
-        includeText: Boolean(args.includeText),
+        ...normalizedArgs,
+        limit: normalizedArgs.limit ?? DEFAULT_SEARCH_LIMIT,
+        maxPreview: normalizedArgs.maxPreview ?? DEFAULT_SEARCH_PREVIEW,
+        includeText: Boolean(normalizedArgs.includeText),
       }, true);
       return createToolResult(result);
     } catch (error) {

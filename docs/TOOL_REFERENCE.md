@@ -34,7 +34,7 @@
 ## `reading_search`
 
 - 用途：按主题词或关键词搜索
-- 输入参数：`bookId` / `all`、`query`、`limit`、`maxPreview`、`includeText`、`stateDir`
+- 输入参数：`bookId` / `all`、`query`、`limit`、`maxPreview`、`includeText`、`stateDir`；省略 `bookId` 和 `all` 时默认全书库搜索
 - 返回结果概要：命中 chunk、分数、预览、warnings
 - 是否读取正文：通常不读；必要时会做 chunk fallback 扫描
 - 是否写文件：否
@@ -43,7 +43,7 @@
 ## `reading_search_exact`
 
 - 用途：按完整原文或划线原文精确搜索
-- 输入参数：`bookId` / `all`、`query`、`limit`、`maxPreview`、`includeText`、`stateDir`
+- 输入参数：`bookId` / `all`、`query`、`limit`、`maxPreview`、`includeText`、`stateDir`；省略 `bookId` 和 `all` 时默认全书库搜索
 - 返回结果概要：命中 chunk、exact 标记、预览、warnings
 - 是否读取正文：是，按需扫描 chunk 文件
 - 是否写文件：否

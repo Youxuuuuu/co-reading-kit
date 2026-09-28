@@ -88,6 +88,20 @@ async function verifyToolInventory(client) {
       `Tool inventory mismatch: expected ${expected[index]}, received ${toolNames[index]}`
     );
   }
+
+  const exactSearch = result.tools.find((tool) => tool.name === "reading_search_exact");
+  const required = exactSearch?.inputSchema?.required || [];
+  assert(required.includes("query"), "reading_search_exact schema must require query");
+  assert(!required.includes("bookId"), "reading_search_exact schema must not require bookId");
+  assert(!required.includes("all"), "reading_search_exact schema must not require all");
+  assert(
+    exactSearch?.description?.includes("Omit bookId and all to search all books"),
+    "reading_search_exact help must describe the default all-books scope"
+  );
+  assert(
+    exactSearch?.inputSchema?.properties?.query?.minLength === 1,
+    "reading_search_exact schema must reject an empty query"
+  );
 }
 
 async function callTool(client, name, args) {
@@ -135,6 +149,7 @@ async function main() {
     cwd: PROJECT_ROOT,
     env: {
       ...process.env,
+      READING_STATE_DIR: STATE_DIR,
     },
     stderr: "pipe",
   });
@@ -238,6 +253,62 @@ async function main() {
       assert(payload?.ok === true, "reading_search_exact did not return ok=true");
       assert(Array.isArray(payload.results), "reading_search_exact.results must be an array");
       assert(payload.results.length > 0, "reading_search_exact must return at least one result");
+      return payload;
+    });
+
+    await runStep("search exact defaults to all books", async () => {
+      const payload = await callTool(client, "reading_search_exact", {
+        query: "清晨的城里有一层很薄的雾",
+        limit: 10,
+        stateDir: STATE_DIR_ARG,
+      });
+
+      assert(payload?.ok === true, "reading_search_exact without scope did not return ok=true");
+      assert(Array.isArray(payload.results), "reading_search_exact without scope must return results");
+      assert(payload.results.length > 0, "reading_search_exact without scope must search all books");
+      return payload;
+    });
+
+    await runStep("search exact accepts the reported query-limit shape", async () => {
+      const payload = await callTool(client, "reading_search_exact", {
+        query: "耳洞早晨 第四章",
+        limit: 10,
+      });
+
+      assert(payload?.ok === true, "reported reading_search_exact shape did not return ok=true");
+      assert(Array.isArray(payload.results), "reported reading_search_exact shape must return results");
+      assert(payload.results.length === 0, "reported query should produce a valid empty result in smoke state");
+      return payload;
+    });
+
+    await runStep("search exact rejects conflicting scope as invalid params", async () => {
+      const result = await client.callTool({
+        name: "reading_search_exact",
+        arguments: {
+          bookId: "sample-book",
+          all: true,
+          query: "雾",
+          stateDir: STATE_DIR_ARG,
+        },
+      });
+      const payload = extractToolPayload(result);
+      assert(result?.isError === true, "reading_search_exact accepted conflicting bookId/all scope");
+      assert(payload?.code === "invalid_args", `Expected invalid_args, received ${payload?.code}`);
+      return payload;
+    });
+
+    await runStep("search exact rejects all false without a book", async () => {
+      const result = await client.callTool({
+        name: "reading_search_exact",
+        arguments: {
+          all: false,
+          query: "雾",
+          stateDir: STATE_DIR_ARG,
+        },
+      });
+      const payload = extractToolPayload(result);
+      assert(result?.isError === true, "reading_search_exact accepted all=false without bookId");
+      assert(payload?.code === "invalid_args", `Expected invalid_args, received ${payload?.code}`);
       return payload;
     });
 
